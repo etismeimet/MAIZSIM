@@ -8,6 +8,7 @@
       Include 'public.ins'
       include 'puplant.ins'
 	Include 'Puweath.ins'
+	Include 'Nitvar.ins'
 	
 	character*132 RunDat
 	integer len, status
@@ -16,8 +17,7 @@
 	if (len.gt.0) then
 	  RunFile=RunDat
 	  endif
-	  
-	
+	  	
 	
       Call Initialize()
       Call Get_Grid_and_Boundary()
@@ -52,8 +52,9 @@ C SetSurfaceH --  reading hourly weather
       Call SoilNitrogen()
       Call MacroChem()
 c      Call MassBl() 
-      
-      Call Output()
+      if (outputSoilYes.gt.0) then 
+         Call Output()
+        endif
 
       
       Goto 1

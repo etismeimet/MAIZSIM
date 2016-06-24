@@ -13,6 +13,7 @@ public:
 	~CNodalUnit();
 	int get_rank() {return rank;}
 	bool isInitiated() {return initiated;}
+	bool isAppeared() {return appeared;}
 	bool isGrowing() {return growing;}
 	bool isProlific() {return prolific;}
 	bool isAging() {return aging;}
@@ -25,12 +26,12 @@ public:
 	void set_stem(CStem * x) {stem=x;}
 //	void set_sheath(CSheath * x) {sheath=x;}
 //	void set_internode(CInternode * x) {internode=x;}
-	void update(CDevelopment *, double predawnlwp);
+	void update(CDevelopment *, double PredawnLWP);
 	void initialize(int, CDevelopment * dv);
 	double get_leafLength(int rank);
 private:
 	int rank; 
-	bool initiated, growing, prolific, aging, terminated;
+	bool initiated, appeared, growing, prolific, aging, terminated;
 	CLeaf * leaf;
 	CStem * stem;
 	double mass;

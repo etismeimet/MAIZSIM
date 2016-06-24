@@ -17,7 +17,7 @@ c previous N step and N+1 step; thus in fact it is the potential transpiration r
       Common /Outcom/NumPoint(2000),NodNum(2000,60),
      &        NumCell(1000),NumElPrint(1000,60),ModNum,
      &        Period, ETO, ActualTrans1,ActualSoilEvap,
-     &        Poparea, pot_ET,pot_ET_EO,flux, ActualInfil,timer,
+     &        pot_ET,pot_ET_EO,flux, ActualInfil,timer,
      &        FluxAct,Runoff,PotentialSoilEvaporation,
      &        CumRain,
      &        SeasonRainfall, SeasonPotenTranspiration,
@@ -51,7 +51,6 @@ C*** FROM HourlyOut.for BEGIN
         SeasonActualTranspiration=0.0
         SeasonPotenSoilEvap=0.0
         SeasonActualSoilEvap=0.0
-	  Poparea=PopRow*100.0/RowSp
 	  ActualTrans1=0.0
 	  pot_ET=0.0
 	  pot_ET_EO=0.0
@@ -61,7 +60,7 @@ C*** FROM HourlyOut.for BEGIN
         Open(84,file=FluxGraphics)
          
       Write(81,5) "Date_time", "Date", "X", "Y", "hNew","thNew", "VZ", 
-     &   "VX","ConcN", "Temp","GasConc"  
+     &   "VX","Q", "ConcN", "Temp","GasConc"  
      
       Write(82,6) "Date_time", "Date", "X", "Y", "Elem", "RTWT",
      &         "TotalRT", "WaterSink", "NitSink", "GasSink", "Area"
@@ -179,12 +178,20 @@ CDT distribute runoff back into Q This makes it uniform. implement this later
 * multiply by 1/poprow * 100  to multiply be the amount of space between 
 * plants (cm) the scales the slab to the area corresponding to one
 * plant - hence the output is per plant
-* cdt 4/22/2011 changed output to be per cm2 to be consistent with the other values
+* 
 
        
            CurrentTrans=(AWUPSS-ActualTrans1)/EOMult/poprow*100
            p_ET=(potential_T-pot_ET)/EOMult/poprow*100
            p_ET_EO=potential_T_EO-pot_ET_EO          ! already per plant
+           
+c potential_T is calculated as a summation of EOR*Step so it is per slab and is cumulative over the simulation
+C EOR is calculated from ET demand in the crop model
+c  pot_ET is the value of potential_T from the previous hour
+           
+C EO is the potential transpiration rate from Penman adjusted for plant cover, calculated in the weather subroutine
+c  potential_T_EO is the summation of EO which is soil surface evap from EO and the Penman equation.
+c pot_ET_EO is the EO summation from the previous time step.           
 c EOR_p is a rough estimate of potential ET. p_ET is a better estimate using time step to 
 c  integrate rather than use an average
            EOR_p=EOR*period/EOMult/poprow*100
@@ -229,8 +236,10 @@ C*** FROM HourlyOut.for END
            
       Return
 C10    Call errmes(im,il)
-  5   Format (1x,12A13)   ! format for nodal data header
-  6   Format (1x,13A13)
+  5   Format (1x,A16, T20,A4,T36,A1,T46,A1, T52,A4,T63,A5,T75,A2,T87,A2,
+     &     T97,A1, T108, A5, T119, A4, T129 A7)   ! format for nodal data header
+  6   Format (1x,A16,T20,A4,T36,A1,T46,A1,T56,A4,T62,A4,T70,A7, T81,A9,
+     &        T93, A7, T105, A7, T115, A4)
  10   Format (1x,F17.6,A15,18F16.3)  !format for flux data
  20   Format (1x,19A16)              !format for flux header
       End        

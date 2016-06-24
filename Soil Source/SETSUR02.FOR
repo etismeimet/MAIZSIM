@@ -1,3 +1,9 @@
+CDT 09/10/2014 added CO2 as an environmental variable
+C     changed relative humidity to be input as a whole number and
+C     convert to fraction internally to make
+C     the routine consistent with the hourly one.
+
+C**                                                                   **
 C**  this routine taken from GLYCIM                                   **
 C**  MSW1-  switch to indicate if daily wet bulb temperatures are     **
 C**         available (=1 if YES).                                    **
@@ -6,8 +12,9 @@ C**  MSW2-  switch to indicate if hourly wind is available (=1 if YES).**
 C**  MSW3-  Daily rain intensities                                    **
 C** cdt don't think these two variables (above) are needed  for hourly data
 C**  MSW4-  Chemical concentrations in rain water                     **
-C**  MSW5-  1 for flood irrigation                                    **
+C**  MSW5-  1 for furrow irrigation                                   **
 C**  MSW6-  1 if relative humidity is available                       **
+C**  MSW7-  1 if Daily CO2 Measurements are available                 **
 C**                                                                   **
 C**  BSOLAR-factor for changing solar radiation units. Equals         **
 C**         radiation in J m-2 divided by radiation in units used in  **
@@ -29,13 +36,13 @@ C**         km hr-1 divided by windspeed in units used in weather     **
 C**         data file.                                                **
 C**                                                                   **
 C**                                                                   **
-C**                                                                   **
+C** CO2   -  If daily values are not available read average           **
 C**                                                                   **
 C**  WIND-  if windspeed is unavailable read in average value for     **
 C**         site. windspeed at 2 meters (km hr-1).                    **
 C**                                                                   **
 C**  (File 1, Line 3 to EOF, free format)                             **
-C**      (WIND, TWET and TDRY are optional)                           **
+C**      (RH WIND, TWET and TDRY CO2 are optional)                    **
 C**                                                                   **
 C**  JDAY-  day of year- Julian Date.  Only used for management       **
 C**         of the weather file. Program converts calendar date       **
@@ -51,11 +58,17 @@ C**  RAIN-  rainfall (or irrigation) (mm day-1).                      **
 C**                                                                   **
 C**  WIND-  windspeed at 2 meters (km hr-1).                          **
 C**                                                                   **
+C**  RH-    Relative Humidity, (%, i.e., 90.2)                        **
+C**                                                                   **
+C**  IRAV-  avg Rainfall intensity for the day, (mm/day, hr?)              **
+C**                                                                   **
 C**  TWET-  wet bulb temperature (oC).                                **
 C**                                                                   **
 C**  TDRY- dry bulb temperature corresponding to TWET (oC).           **
 C**                                                                   **
-C**  Hourly values for radiation will be converted to watts m-2 as 
+C**  CO2  - CO2 concentration of the atmosphere ppm                   **
+C**                                                                   **
+C**  Daily values for radiation will be converted to watts m-2 as 
 C**   soon as they are read in. 
 C**                                                                   **
       Subroutine SetSurfaceD()
@@ -63,8 +76,7 @@ C**                                                                   **
       Include 'Puplant.ins'
       Include 'Puweath.ins'
       Parameter (PERIOD =1./24.)
-      
-      integer jday, ThisYear,DayofYear,CurYear, ModNum
+      integer jday, DayofYear,CurYear, ModNum,ThisYear
       Common /weather/ il,im,isol,ModNum
       
       double precision St,t
@@ -118,7 +130,7 @@ C
       Read (5,*,ERR=10)
       im=im+1
       il=il+1
-      Read (5,*,ERR=10) MSW1,MSW2,MSW3,MSW4,MSW5,MSW6
+      Read (5,*,ERR=10) MSW1,MSW2,MSW3,MSW4,MSW5,MSW6,MSW7
       im=im+1
       il=il+1
       Read (5,*,ERR=10)
@@ -129,7 +141,7 @@ C
       il=il+1
       Read (5,*,ERR=10) BSOLAR,BTEMP,ATEMP,ERAIN,BWIND,BIR
       ISOL=NumSol*Movers(2)
-      NCD=2-MSW2-MSW3+ISOL+(NumG+1)*Movers(4)
+      NCD=3-MSW2-MSW3+ISOL+(NumG+1)*Movers(4)-MSW7
       im=im+1
       il=il+1
       Read (5,*,ERR=10)
@@ -152,11 +164,14 @@ C
           GAIR(i)=CLIMAT(3-MSW2-MSW3+ISOL+i)
         Enddo
       Endif
+      IF(MSW7.eq.0) then
+         CO2=CLIMAT(NCD)
+       Endif
       close(5)      
 C
 C Total number of weather data
 C
-      NCD=4+2*MSW1+MSW2+MSW3+ISOL*MSW4+MSW6
+      NCD=4+2*MSW1+MSW2+MSW3+ISOL*MSW4+MSW6+MSW7
 C
 C     Nodal numbers of furrow nodes
 C
@@ -288,9 +303,14 @@ CDT
 
       If(MSW6.gt.0) then
 c        Rel_Humid=Climat(4+2*MSW1+MSW2+MSW3+ISOL+MSW6)
-          Rel_Humid=Climat(4+2*MSW1+MSW2+MSW3+ISOL*MSW4+MSW6)
+         Rel_Humid=min(Climat(4+2*MSW1+MSW2+MSW3+ISOL*MSW4+MSW6)
+     &     /100.0,0.98)
+          Rel_Humid=max(0.0,Rel_Humid)
 c         Rel_Humid=CLIMAT(5)
        endif
+      If(MSW7.gt.0) then
+          CO2=Climat(4+2*MSW1+MSW2+MSW3+ISOL*MSW4+MSW6+MSW7)
+       EndIf
 Cdt
 c......................... Radiation submodel
 C
@@ -806,7 +826,7 @@ C
         Do 90 i=1,ic
 cDT 4-22-2011 assume 10% of et is minimum from a covered node
 
-          PSh=max(0.1,FSh(i,xBSTEM,SHADE,xS,ic))
+          PSh=max(0.0,FSh(i,xBSTEM,SHADE,xS,ic))
 c
 c  IF THE NODE IS EXPOSED THEN
 c

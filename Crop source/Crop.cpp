@@ -8,7 +8,6 @@
 #include "time.h"
 #include <cstdlib>
 #include <cstdio>
-#include <iostream>
 #include <fstream>
 #include <string>
 #include <iomanip>
@@ -48,8 +47,6 @@ void crop_(struct
 	//First read input data if start of simulation
 	char* Buffer=(char*)calloc(256,sizeof(char));
 	
-	// DEL LATER ::NR dConvert;
-	ofstream ostr;
 	static CController* pSC; //SK, declare as static to ensure only one copy is instantiated during 2DSOIL execution
 	// varFile contains variety information, GraphicFile holds output,LeafFile holds individual leaves
 
@@ -63,108 +60,41 @@ void crop_(struct
 		SETSTR(GraphicFile, file_public->GraphicsFile);
 		SETSTR(LeafFile, file_public->LeafFileIn);
 
-		std::cout << "Crop object reading initials file..." << endl;
-		SETSTR(iniFile, file_public->InitialsFile);
-
-		ifstream in(iniFile.c_str());
-		if (!in) 
-		{
-			cout << "error opening file" << endl ; 
-			// acctually need to call the 2DSOIL error message
-			// routine
-			//			 error_public->errPlant=1;
-			return;
-		}
-		//CString Junk;
-		char ttmp[11];
-//DT for some reason need to read the buffer twice when reading text after a line of numbers
-// TODO - Plant density can be calculated from poprow and row spacing.
-// TODO need to add the initinfo components into SHOOTR and read from there. 
-		in.getline(Buffer,100) ;
-		in.getline(Buffer,100) ;
-		in >> SHOOTR->PopRow >> SHOOTR->RowSp >>initInfo.plantDensity >> SHOOTR->RowAng ;
-		in >> SHOOTR->xBStem >> SHOOTR->yBStem >> SHOOTR->CEC >>SHOOTR->EOMult >>initInfo.CO2;
-		in.getline(Buffer,10);
-	    in.getline(Buffer,100);
-		in >> initInfo.latitude >> initInfo.longitude >> initInfo.altitude;
-		in.getline(Buffer,10);
-		in.getline(Buffer,100);
-		in >> Weather->AutoIrrigate;
-		in.getline(Buffer,10);
-		in.getline(Buffer,100);
-
-        
-		int mm,dd,yy;
-	
-		Timer  dConvert;
-
-		in >> ttmp;
-		sscanf(ttmp, "%d/%d/%d", &mm,&dd,&yy);
-		initInfo.beginDay = dConvert.julday(mm,dd,yy);
-		initInfo.year=yy;
-
-
-		in >> ttmp;
-		sscanf(ttmp, "%d/%d/%d", &mm,&dd,&yy);
-		initInfo.sowingDay = dConvert.julday(mm,dd,yy);
-
-		in >> ttmp;
-		sscanf(ttmp, "%d/%d/%d", &mm,&dd,&yy);
-		Emergence = dConvert.julday(mm,dd,yy);
+// DT 10/07/2014 moved reading of initials file to soil model (Init.for)
 		
-		in >> ttmp;
-		sscanf(ttmp, "%d/%d/%d", &mm,&dd,&yy);
-		initInfo.endDay = dConvert.julday(mm,dd,yy);
-        in >> initInfo.timeStep;
-
-
-		if (in.gcount() <10)
-		{
-			//			 errPlant=1;
-			cout << "not enough data" << endl; // rudimentary error checking
-		}
-		in.close();  
-		
-
-
-		SHOOTR->iTime=1;
+		initInfo.plantDensity=SHOOTR->PopArea; 
+        initInfo.latitude=Weather->LATUDE;
+		initInfo.longitude=Weather->Longitude;
+		initInfo.altitude=Weather->Altitude;
+	    initInfo.year=time_public->Year;
+		initInfo.sowingDay=time_public->sowingDay;
+		initInfo.beginDay=time_public->beginDay;
+		initInfo.endDay=time_public->endDay;
+		initInfo.timeStep=time_public->TimeStep;
+    	time_public->iTime=1;
 		SHOOTR->LCAI=0.0;
 		SHOOTR->LAREAT=0.0;
 		SHOOTR->Height=0.0;
 		//dt change for debugging purposes
 		SHOOTR->Convr=1.0; // was 0.1 or 0.38 should be 1.0 as dry matter is used in all cases
-		SHOOTR->AWUPS = 0.0;  //initialize AWUPS, AWUPS_old and psil_ in 2DSOIL Yang 8/15/06
-		SHOOTR->psil_ = -0.5; 
+		SHOOTR->AWUPS = 0.0;  //initialize AWUPS, AWUPS_old and LeafWP in 2DSOIL Yang 8/15/06
+		SHOOTR->LeafWP = -0.5; 
 		SHOOTR->PCRS = 0.0;
 		SHOOTR->ET_demand = 0.0;
 		SHOOTR->HourlyCarboUsed=0;  //it is also zero'd upon initialization in 2dsoil
-		Period=1.0/24.0;
+		Period=time_public->TimeStep/60/24; // period should be in days, input in minutes
 		PopSlab=SHOOTR->PopRow/100.0*SHOOTR->EOMult;
-            //PopSlab=SHOOTR->PopRow/100*SHOOTR->RowSp*SHOOTR->EOMult;
-		Popare=SHOOTR->PopRow*100.0/SHOOTR->RowSp;
+		SHOOTR->isEmerged=SHOOTR->isEmerged=0;
+		/*These two lines show the relationships among some of the space variables.
+              --PopSlab=SHOOTR->PopRow/100*SHOOTR->RowSp*SHOOTR->EOMult;
+		      --PlantDensity=SHOOTR->PopRow*100.0/SHOOTR->RowSp;
+	     */
 
 // A new plant model object is created and initialized (calls initialize function) here
 //  ***************************************************************************
- 		pSC = new CController(varFile.c_str(), GraphicFile.c_str(), LeafFile.c_str(), initInfo);
+ 		pSC = new CController(varFile.c_str(), GraphicFile.c_str(), LeafFile.c_str(), initInfo); //Consider putting file names in initInfo
 //  ***************************************************************************
 
-		//can pass root parameters back to 2DSOIL here
-		/*
-		This block is not used now, all 2dsoil variables are read by 2dsoil 
-		This should be deleted after we are sure of the structure
-        SHOOTR->RRRM=initInfo.RRRM;
-		SHOOTR->RRRY=initInfo.RRRY;
-		SHOOTR->RVRL=initInfo.RVRL;
-		SHOOTR->ALPM=initInfo.ALPM;
-		SHOOTR->ALPY=initInfo.ALPY;
-        SHOOTR->RTWL=initInfo.RTWL;
-		SHOOTR->RtMinWtPerUnitArea=initInfo.RtMinWtPerUnitArea;
-        SHOOTR->Wl=initInfo.Wl;
-		SHOOTR->Wa=initInfo.Wa;
-	    SHOOTR->Wr=initInfo.Wr;
-		SHOOTR->Wb=initInfo.Wb;
-		*/
-// -----------
 		NitrogenUptake=pSC->getPlant()->get_N()*PopSlab; //initialize nitrogen uptake with what is already in the plant
 		//SK 8/20/10: this is curious but OK
 
@@ -180,14 +110,6 @@ void crop_(struct
 	} // end if
 	} //end initialization
 
-
-//	if((module_public->NShoot == 0) && (fabs(time_public->Time-pSC->getSowingDay()))<0.001)
-		//	{
-//		module_public->NumMod=module_public->NumMod+1 ;
-//		ModNum=module_public->NumMod;
-//		module_public->NShoot=1;
-//		time_public->tNext[ModNum-1]=time_public->Time+Period;
-//	} // end if
 	//SK:  Running the crop module step by step
 	if (module_public->NShoot>0)
 	{
@@ -219,25 +141,31 @@ void crop_(struct
 				wthr.DailyOutput=time_public->DailyOutput;
 				wthr.jday = Weather->JDAY;
 				wthr.time = time_public->Time-Weather->JDAY;
-				wthr.CO2 = initInfo.CO2;
-				wthr.airT = Weather->TAIR[SHOOTR->iTime-1];
-				wthr.PFD = Weather->par[SHOOTR->iTime-1]*4.6; // conversion from PAR in Wm-2 to umol s-1 m-2
-				wthr.solRad = Weather->WATTSM[SHOOTR->iTime-1]; //conversion from Wm-2 to J m-2 in one hour
+				wthr.CO2 = Weather->CO2; 
+				if (initInfo.CO2>0) 
+				{
+					wthr.CO2=initInfo.CO2;         //Can set CO2 in initials for specific simulations where CO2 is constant
+				}
+				wthr.airT = Weather->TAIR[time_public-> iTime-1];
+				wthr.PFD = Weather->par[time_public->iTime-1]*4.6; // conversion from PAR in Wm-2 to umol s-1 m-2
+				wthr.solRad = Weather->WATTSM[time_public->iTime-1]; //conversion from Wm-2 to J m-2 in one hour Total Radiation incident at soil surface
 				Es = (0.611*exp(17.502*wthr.airT/(240.97+wthr.airT))); // saturated vapor pressure at airT
-				wthr.RH = (1-(Weather->VPD[SHOOTR->iTime-1]/Es))*100.0; // relative humidity in percent
-				wthr.rain = Weather->RINT[SHOOTR->iTime-1];
+				wthr.RH = (1-(Weather->VPD[time_public->iTime-1]/Es))*100.0; // relative humidity in percent
+				wthr.rain = Weather->RINT[time_public->iTime-1];
 				wthr.wind = Weather->WIND*(1000.0/3600.0); // conversion from km hr-1 to m s-1
 				wthr.dayLength = Weather->daylng;
-				wthr.psil_ = SHOOTR->psil_/10;  //and leaf water potential information into MAIZESIM Yang 8/15/06
-				//since psil_ in 2dsoil is in bar but in maizesim is in MPa, so, have to
+				wthr.LeafWP = SHOOTR->LeafWP/10;  //and leaf water potential information into MAIZESIM Yang 8/15/06
+				wthr.pcrl=SHOOTR->PCRL/PopSlab/24.;
+				wthr.pcrq=SHOOTR->PCRQ/PopSlab/24.;
+				//since LeafWP in 2dsoil is in bar but in maizesim is in MPa, so, have to
 				//divide it by 10 to convert it into MPa before passing the value to Maizesim 1 bar=10kPa
 
 				if (abs(wthr.time-0.2083)<0.0001) //If time is 5 am, then pass the leaf water potential (the predawn leaf water potential)
 					//from SHOOTR to the wthr object. YY
 
 				{
-					lwpd=SHOOTR->psil_; //Here psil_ is in bar. Since the LWPeffect in leaf.cpp uses leaf water potential
-					//in bar, so here lwpd is in bar, instead of being scaled to MPa. YY
+					PredawnLWP=SHOOTR->LeafWP; //Here LeafWP is in bar. Since the LWPeffect in leaf.cpp uses leaf water potential
+					//in bar, so here PredawnLWP is in bar, instead of being scaled to MPa. YY
 				}
 
 // pass actual carbohydrate amount used in 2dsoil back to the plant
@@ -253,7 +181,7 @@ void crop_(struct
 				//SHOOTR->PCRS in 2dsoil is the actual rate of carbon supplied to roots in a soil slab, it is in g/day;
 				//dividing it by (ShOOTR->Rowsp*1)/10000 converts it to g/day/m^2;
 				//further dividing it by weather->daylng converts it to g/hour/m^2;
-				//then dividing it by Popare, which is the plant density, converts it to g/hour/plant, 
+				//then dividing it by plant density, converts it to g/hour/plant, 
 				//which is the unit of the wthr.pcrs in maizesim. Yang. 10/27/06
 
 				//Pass through nitrogen uptake (total mg per slab in the one hour) from 2DSOIL. 
@@ -329,10 +257,10 @@ void crop_(struct
 			int ier = pSC->getErrStatus();
 			if ( ier == 0 ) 
 			{
-				ier = pSC->run(wthr, lwpd); //Pass both weather and leaf water potential into the "run" function
+				ier = pSC->run(wthr, PredawnLWP); //Pass both weather and leaf water potential into the "run" function
 				//of the controller pSC YY
 				// need to get rid of other run module (with only wthr) done?
-				// need to add lwpd to wthr structure
+				// need to add PredawnLWP to wthr structure
 			}
 
 
@@ -343,14 +271,40 @@ void crop_(struct
 				{
 					if (!pSC->getPlant()->get_develop()->Germinated())
 					{
-						cout << wthr.jday <<endl;
+						cout << "Germinated on:" <<wthr.jday <<endl;
 					} 
 				}
 			}
+// The remaining groups of code handle carbon and nitrogen exchange between 2dsoil and maizsim
+            if ((pSC->getPlant()->get_develop()->Germinated()) && (!pSC->getPlant()->get_develop()->Emerged()))
+				// begin root growth at germination
+			{
+				if (!SHOOTR->isGerminated)
+				{
+					SHOOTR->isGerminated=1;
+					SHOOTR->InitialRootCarbo=pSC->getPlant()->get_rootMass()*PopSlab; // get initial root mass to distribute over initial nodes
+				}
 
+				//double pool=pSC->getPlant()->get_C_pool_root(); //This holds any carbon not used for root growth in the previous time step
+				//if ((pSC->getPlant()->get_C_pool_root()>0) && (pSC->getPlant()->get_rootPart()<0.00001))
+				// TODO: need to put in a method since we repeat it in several places
+				//{ 
+					
+				//	SHOOTR->PCRL=(pSC->getPlant()->get_rootPart()+pool)*24*PopSlab;
+		    	//	pSC->getPlant()->set_C_pool_root(0.0);
+				//}
+
+				//else
+				//{
+				//	SHOOTR->PCRL=(pSC->getPlant()->get_rootPart())*24*PopSlab;
+					
+				//}
+
+			}
 			if (pSC->getPlant()->get_develop()->Emerged())
 				// pass appropriate data to 2DSOIL file structures 
 			{
+				if (!SHOOTR->isEmerged) SHOOTR->isEmerged=1;
 				//ActualCarboIncrement is calculated from "assimilate", which in turn is calculated from photosynthsis_net in
 				//plant; the unit of assimilate then is in g/plant/hour, thus, at this point, pcrl has unit g/plant/hour
 				// Multiply by 24 to get g plant-1 day-1; multiply by popslab to get g Carbo slab-1 day-1
@@ -370,7 +324,17 @@ void crop_(struct
 					SHOOTR->PCRL=(pSC->getPlant()->get_rootPart())*24*PopSlab;
 					
 				}
-                SHOOTR->PCRQ=(pSC->getPlant()->get_rootPart()+ pSC->getPlant()->get_shootPart())*24*PopSlab;
+				bool gf=pSC->getPlant()->get_develop()->GrainFillBegan();
+				
+                
+				SHOOTR->PCRQ=(pSC->getPlant()->get_rootPart()+ (pSC->getPlant()->get_shootPart()))*24*PopSlab;
+                  if (gf) 
+				  {
+                      SHOOTR->PCRQ=(pSC->getPlant()->get_rootPart())*24*PopSlab +
+						  (0.75*pSC->getPlant()->get_shootPart())*24*PopSlab;
+				  }
+                //DT 09/19/14 under strong water stress mid season too much carbon is allocated to the roots, we
+				// try to limit it here.
 				//SHOOTR->PCRQ=SHOOTR->PCRL; //for debugging now remove later
 			//dt 03/2011 added these two for debugging now - need to calculate mass balcance of carbo sent to root
 				//can drop them later
@@ -393,7 +357,7 @@ void crop_(struct
                 
 				shoot_weightPerM2 = pSC->getPlant()->get_shootMass()*pSC->getInitInfo().plantDensity; //Calculate total shoot mass per meter aquared YY
                 massIncrease = (shoot_weightPerM2 - old_shoot_weightPerM2); //Calculated increase in above-ground biomass per m2 YY
-				
+				massIncrease = max(0.0,massIncrease); // was going zero 2/6/2016 DT
 				//The biomass  returned by getPlant()->get_shootMass() is the weight of each single plant (g/plant), 
 				//to convert it into (g/m-2), it has to be 
 				//multiplied by pSC->getIniInfo().plantDensity
@@ -471,7 +435,8 @@ void crop_(struct
 
 			}
 
-			if (pSC->getPlant()->get_develop()->Matured()) 
+			if (pSC->getPlant()->get_develop()->Dead()) 
+//			if (pSC->getLastDayOfSim() <= pSC->getTime()->get_day_of_year()) 
 			{
 				cout << "Completing crop simulation..." <<endl;
 				module_public->NShoot=0; //tell 2dsoil that crops harvested
@@ -479,7 +444,6 @@ void crop_(struct
 				pSC = NULL; // if matured points to nothing
 				delete pSC;
 				time_public->RunFlag=0;
-				ostr.close();
 			}
 			else
 			{

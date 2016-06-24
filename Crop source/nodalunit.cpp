@@ -9,7 +9,7 @@ CNodalUnit::CNodalUnit()
 	stem = NULL;
 //	sheath = NULL;
 //	internode = NULL;
-	initiated = growing = aging = terminated = false;
+	initiated = appeared = growing = aging =  prolific =terminated = false;
 }
 void CNodalUnit::initialize(int n, CDevelopment * dv)
 {
@@ -20,6 +20,7 @@ void CNodalUnit::initialize(int n, CDevelopment * dv)
 //	internode = new CInternode();
 	leaf->initialize(dv);
 	stem->initialize();
+	mass = leaf->get_mass() + stem->get_mass(); // has no mass here
 	initiated = true;
 }
 
@@ -32,9 +33,9 @@ CNodalUnit::~CNodalUnit()
 }
 
 
-void CNodalUnit::update(CDevelopment * dv, double predawnlwp)
+void CNodalUnit::update(CDevelopment * dv, double PredawnLWP)
 {
-	leaf->update(dv, predawnlwp);
+	leaf->update(dv, PredawnLWP);
 	stem->update(dv);
 //	stem->grow(weather); // mass is not updated yet for leaf area increase should be able to add actual carbon increment here
 	mass = leaf->get_mass() + stem->get_mass(); // has no mass here

@@ -29,9 +29,20 @@ CController::CController(const char* filename, const char* outfile, const char* 
 	weather 		 = NULL;
 	plant			 = NULL;
 	
+	int loc;
 	strcpy_s(varietyFile, filename);
     strcpy_s(cropFile, outfile);
+	char *pch=(char*)calloc(133,sizeof(char));
+	char *next=(char*)calloc(133,sizeof(char));
+	char *ext=".dbg";
+	char* temp=(char*)calloc(133,sizeof(char)); 
+	strcpy_s(temp,133,cropFile);
+	pch=strtok_s(temp,".",&next);
+	temp=strcat(pch,ext);
+	strcpy_s(DebugFile,temp);
 	strcpy_s(LeafFile, LFile);
+	//DebugFile=outfile
+	//strcpy_s(DebugFile,"Debug.out");
 	initInfo = iniInfo;
 	iCur = 0;
 	weatherFormat = ICASA;
@@ -39,6 +50,7 @@ CController::CController(const char* filename, const char* outfile, const char* 
 	lastDayOfSim = 365;
     initialize();
 	errorFlag = 0;
+	
 }
 
 CController::~CController()
@@ -55,22 +67,42 @@ CController::~CController()
 //**********************************************************************
 void CController::initialize()
 {
+	ofstream DebugOut(DebugFile, ios::out);
+	DebugOut
+    		 << setw(10) << "date"
+			<< setw(6) << "jday"
+			<< setw(7) << "time"
+			<< setw(3) << "sunlit"
+            << setw(4) << "shaded"
+			<< setw(5) << "Pn"
+			<<setw(7)  << "Pg"
+			<<setw(7)  << "Lvs Init"
+			<<setw(9)  << "Lvs apprd"
+			<<setw(9)  << "Lvs grwg"
+			<<setw(9)  << "C to Lvs"
+			<<setw(9)  <<"C2_effect"
+			<<setw(9)  <<"sunlitRatio"
+			<<endl
+        ;
+	DebugOut.close();
+
 	Timer dConvert; //object to convert dates 
 	int mm, dd,yy;  // for calendar dates
 	char* Buffer=(char*)calloc(256,sizeof(char)); //to hold duumy strings from variety file
 	cout << "Initializing Controller object...." << endl <<endl <<endl ; 
 	cout <<setiosflags(ios::left) << endl
 		<< " ***********************************************************" << endl
-		<< " *          MaizeSim: A Simulation Model for Corn          *" << endl
-		<< " *                     VERSION  1.0.00 2011                *" << endl
+		<< " *          MAIZSIM: A Simulation Model for Corn           *" << endl
+		<< " *                     VERSION  1.1.00 2014                *" << endl
 		<< " *   USDA-ARS, CROP SYSTEMS AND GLOBAL CHANGE LABORATORY   *" << endl
+		<< " *   U of Washington, Environmental and Forest Sciences    *" << endl
 		<< " ***********************************************************" << endl
 		<< endl << endl;
 // output headings of files
 // This is the leaf file for output (see function "output to leaffile"
 	{
 		ofstream LeafOut(LeafFile, ios::out);
-		LeafOut << setiosflags(ios::right)
+		LeafOut << setiosflags(ios::left)
 			<< setiosflags(ios::fixed)
             << setw(10) << "date"
 			<< setw(6) << "jday"
@@ -79,7 +111,7 @@ void CController::initialize()
 			<< setw(9) << "Lvs_Apr"
 			<< setw(9) << "Leaf_#"
 			<< setw(7) << "area"
-			<< setw(13) << "mass"
+			<< setw(10) << "mass"
 			<< setw(10) << "Sen_Area"
 			<< setw(10) << "Pntl_Area"
 			<< setw(9) << "Longev"
@@ -94,7 +126,7 @@ void CController::initialize()
 //This is the plant file for output (see function "output to crop file"
 	{
 		ofstream cropOut(cropFile, ios::out); 
-		cropOut << setiosflags(ios::right) 
+		cropOut << setiosflags(ios::left) 
 			<< setiosflags(ios::fixed)
  			<< setw(9) << "date" 
  			<< setw(6) << "jday" 
@@ -102,10 +134,10 @@ void CController::initialize()
 			<< setw(8) << "Leaves"
 			<< setw(8) << "Dropped"
 			<< setw(8) << "LA/pl"
-			<< setw(8) << "LA_ac"
+			<< setw(8) << "LA_dead"
 			<< setw(8) << "LAI"
-			<< setw(8) << "LAI_ac"
-			<< setw(8) << "psil_"
+			<< setw(8) << "RH"
+			<< setw(8) << "LeafWP"
 			<< setw(8) << "PFD"
 			<< setw(8) << "SolRad"
 			<< setw(8) << "SoilT"
@@ -126,12 +158,12 @@ void CController::initialize()
 		    << setw(8) << "totalDM"
 			<< setw(8) << "shootDM"
 			<< setw(8) << "earDM"
-			<< setw(8) << "leafDM"
-			<< setw(8) << "DroppedLfDM"
+			<< setw(8) << "GrleafDM"
+			<< setw(8) << "DrpLfDM"
 			<< setw(8) << "stemDM"
 			<< setw(8) << "rootDM"
-			<< setw(8) << "SoilRoot"
-			<< setw(8) << "MaxRDepth"
+			<< setw(8) << "SoilRt"
+			<< setw(8) << "MxRtDep"
             << setw(8) << "AvailW"
 			<< setw(9) << "solubleC"
 			<< setw(9) << "Note"
@@ -154,18 +186,7 @@ void CController::initialize()
 		cfs.getline(Buffer, 255,'\n');
         cfs >> initInfo.GDD_rating >> initInfo.genericLeafNo >> initInfo.DayLengthSensitive 
 			 >>initInfo.Rmax_LTAR >> initInfo.Rmax_LIR >> initInfo.PhyllochronsToSilk;
-// Read root parameters
-/* 
-These are not read by 2dsoil delete this block when we are sure of the structure
-		cfs.getline(Buffer, 255,'\n');
-        cfs.getline(Buffer, 255,'\n');
-		cfs >>initInfo.RRRM >> initInfo.RRRY >> initInfo.RVRL
-			>> initInfo.ALPM >> initInfo.ALPY;
-		cfs.getline(Buffer, 255,'\n');
-		cfs >> initInfo.RTWL >> initInfo.RtMinWtPerUnitArea 
-			>> initInfo.Wl >>initInfo.Wa>> initInfo.Wr >>initInfo.Wb;
 
- */
 // end reading variety file
 
 
@@ -221,12 +242,12 @@ void CController::readWeatherFrom2DSOIL(const TWeather & wthr)
 
 
 
-int CController::run(const TWeather & wthr, double lwpd)
+int CController::run(const TWeather & wthr, double PredawnLWP)
 {
 	readWeatherFrom2DSOIL(wthr);
     if (weather[iCur].jday >= initInfo.sowingDay && weather[iCur].jday <= lastDayOfSim)
 	{
-		plant->update(weather[iCur], lwpd);
+		plant->update(weather[iCur], PredawnLWP);
 		RootWeightFrom2DSOIL=wthr.TotalRootWeight;
 		MaxRootDepth=        wthr.MaxRootDepth;
 		AvailableWater=      wthr.ThetaAvail;
@@ -238,6 +259,9 @@ int CController::run(const TWeather & wthr, double lwpd)
 			outputToCropFile();
 //			if (plant->get_develop()->Germinated())
 				outputToLeafFile();
+#ifndef _DEBUG_FILE
+				if (plant->get_develop()->Germinated()) outputToDebug();
+#endif
 //			}
 //		if (weather[iCur].HourlyOutput==1)
 //			{
@@ -281,6 +305,8 @@ void CController::outputToCropFile()
 			else if (plant->get_develop()->Flowered()) {s="Flowered";}
 			else if (plant->get_develop()->TasselInitiated()) {s="Tasselinit";}
 			else if (plant->get_develop()->Emerged()) {s="Emerged";}
+			else if (plant->get_develop()->Germinated()) {s="Germinated";}
+    		else if (plant->get_develop()->Dead()) {s="Inactive";}
 			else {s="none";}
 		//	if (FLOAT_EQ(plant->get_develop()->emergence.daytime,weather[iCur].daytime)){s = "Emergence";}
 		////	if (FLOAT_EQ(plant->get_develop()->tasselInitiation.daytime,weather[iCur].daytime)){s = "Tassel Initiation";}
@@ -298,11 +324,10 @@ void CController::outputToCropFile()
 				<< setw(8) << setprecision(2) << plant->get_develop()->get_LvsAppeared()
 				<< setw(8)  << setprecision(2) << plant->get_nodalUnit()->get_leaf()->get_TotalDroppedLeaves()
 				<< setw(8) << setprecision(2) << plant->calcGreenLeafArea()
-				<< setw(8) << setprecision(2) << plant->calcActualGreenLeafArea()
+				<< setw(8) << setprecision(2) << plant->calcSenescentLeafArea()
 				<< setw(8) << setprecision(2) << plant->calcGreenLeafArea()*initInfo.plantDensity/(100*100)
-				<< setw(8) << setprecision(2) << plant->calcActualGreenLeafArea()*initInfo.plantDensity/(100*100)
-				//<< setw(8) << setprecision(2) << plant->getCarbonRatio()
-				<< setw(8) << setprecision(4) << weather[iCur].psil_   //print out leaf water potential Yang 8/22/06
+				<< setw(8) << setprecision(2) << weather[iCur].RH
+				<< setw(8) << setprecision(4) << weather[iCur].LeafWP   //print out leaf water potential Yang 8/22/06
 				<< setw(8) << setprecision(2) << weather[iCur].PFD
 				<< setw(8) << setprecision(2) << weather[iCur].solRad
 				<< setw(8) << setprecision(2) << weather[iCur].soilT
@@ -336,7 +361,7 @@ void CController::outputToCropFile()
 				<< setw(9) << setprecision(2)  << weather[iCur].dayLength
             //    << setw(9) << setprecision(2) << plant->get_develop()->get_GDDsum()
 				<< endl; 
-		
+		ostr.close();
 	}
 }
 void CController::outputToLeafFile()
@@ -352,7 +377,7 @@ void CController::outputToLeafFile()
 	DateForOutput.Format("%.2d/%.2d/%4i",mm,id,iyyy);
 #else
 	char DateForOutputBuff[16];
-	snprintf(DateForOutputBuff, 16, "%.2d/%.2d/%4i", mm, id, iyyy);
+	sprintf(DateForOutputBuff, "%.2d/%.2d/%4i", mm, id, iyyy);
 	DateForOutput = DateForOutputBuff;
 #endif
 	ofstream ostr(LeafFile, ios::app);
@@ -369,20 +394,62 @@ void CController::outputToLeafFile()
 			<< setw(9)   << setprecision(2) << plant->get_develop()->get_LvsAppeared()
 			<< setw(9)   << setprecision (0)<< nU->get_leaf()->get_Rank()
 			<< setw(9)   << setprecision(3) << nU->get_leaf()->get_greenArea()
-			<< scientific
-			<< setw(13)   << setprecision(3) << nU->get_leaf()->get_mass()
+//			<< scientific
+			<< setw(10)   << setprecision(4) << nU->get_leaf()->get_mass()
 			<< fixed
 			<< setw(9)   << setprecision(3) << nU->get_leaf()->get_senescentArea()
             << setw(9)   << setprecision(3) << nU->get_leaf()->get_potentialArea()
 			<< setw(9)   << setprecision(3) << nU->get_leaf()->get_longevity()
-			<< setw(9)   << setprecision(3) << "1.0"   //placeholder for now 
+			<< setw(9)   << setprecision(3) << nU->get_leaf()->get_N_content() 
 			<< setw(9)   << setprecision(1) << nU->get_leaf()->get_SLA()
 			<< setw(9)   << setprecision(3) << nU->get_leaf()->isDropped()
 			<< setw(9)   << setprecision(3) << nU->get_leaf()->isGrowing()
 			<< setw(9) << setprecision(2) << plant->get_develop()->get_GDDsum()
 			<< endl; 
 	}
-	
+	ostr.close();
 	nU=NULL;
 
+}
+
+void CController::outputToDebug()
+{
+	// needed for saving information on carbon allocation and assimilation
+	// Can be modified for other variables. 
+	// only called if _DEBUG_FILE is defined.
+	CNodalUnit*  nU;
+	CDevelopment* myDevelop=plant->get_develop();
+	int mm,id,iyyy,i;
+	string DateForOutput;
+	time->caldat(weather[iCur].jday, mm, id,iyyy);
+#if 0
+	DateForOutput.Format("%.2d/%.2d/%4i",mm,id,iyyy);
+#else
+	char DateForOutputBuff[16];
+	sprintf(DateForOutputBuff, "%.2d/%.2d/%4i", mm, id, iyyy);
+	DateForOutput = DateForOutputBuff;
+#endif
+	
+
+
+	ofstream DebugOut(DebugFile, ios::app);
+	 DebugOut << setiosflags(ios::right) 
+		<< setiosflags(ios::fixed);
+     DebugOut << setw(11) << DateForOutput
+			<< setw(7)   << weather[iCur].jday 
+			<< setw(3)   << setprecision(0) << weather[iCur].time*24.0
+			<< setw(7)   << setprecision(2) << plant->getSunlitLAI()
+	        << setw(7)   << setprecision(2) << plant->getShadedLAI()
+			<< setw(8)   << setprecision(2) << plant->get_Pn()*1000.0   //g Carbo per plant per hour
+		    << setw(8)   << setprecision(2) << plant->get_Pg()*1000.0 
+			<< setw(8)   << setprecision(0) << myDevelop->get_LvsInitiated()
+		    << setw(8)   << setprecision(0) << myDevelop->get_LvsAppeared()
+			<< setw(8)   << setprecision(0) << plant->get_nodalUnit()->get_leaf()->get_TotalGrowingLeaves()
+			<< setw(8)   << setprecision(2) << plant->get_leafPart()*1000.0 
+			<< setw(6)   << setprecision(2) << plant->getC2_effect()
+			<< setw(6)   << setprecision(2) <<plant->getSunlitRatio()
+			<< endl;
+	 myDevelop=NULL;
+	DebugOut.close();
+    
 }

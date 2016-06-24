@@ -8,10 +8,15 @@ c like it was more than 1000 and so no go into the table.
 Cdt 11/29/2011 added ability to calculate available water
 C added two new variables TUpperLimit, TLowerLimit and an array, TAVAIL,
 C   and ThFUll = which is total available water
+C dt 7/2014 added Bulk Density and soil texture to soil file. They are 
+C  read here
+C 12/ 2015 made TUpperLimit and TLowerLimit arguments so they could be used in the main program
+C 
       subroutine SetMat(lInput,NumNP,hNew,hOld,NMat,MatNum,Con,Cap,
      &                  BlkDn,hTemp,Explic,Theta,hTab1,hTabN,
      &                  hSat,ThSat,ThR, ThAvail,ThFull,
-     &                  FracOM, FracSind, FracClay,SoilFile)
+     &                  FracOM, FracSind, FracClay,
+     &                  TupperLimit, TLowerLimit,SoilFile)
       Logical Explic
       character SoilFile*132
       Real BldDn
@@ -19,14 +24,14 @@ C   and ThFUll = which is total available water
       Common /HydPar/ Par(NPar,NMatD),
      !                hTab(NTabD),ConTab(NTabD,NMatD),
      !                CapTab(NTabD,NMatD),ConSat(NMatD),
-     !                TheTab(NTabD,NMatD),alh1,dlh,
-     !                TUpperLimit(NMatD),TLowerLimit(NMatD)
+     !                TheTab(NTabD,NMatD),alh1,dlh
    
       Dimension hNew(NumNP),hOld(NumNP),MatNum(NumNP),
      !          Con(NumNP),Cap(NumNP),hTemp(NumNP),Theta(NumNP),
      !          thR(NMatD),hSat(NMatD),thSat(NMatD),ThAvail(NumNP),
      !           ThFull(NMatD),BlkDn(NMatD),
-     !          FracOM(NMatD), FracSind(NMatD), FracClay(NMatD)
+     !          FracOM(NMatD), FracSind(NMatD), FracClay(NMatD),
+     !          TUpperLimit(NMatD),TLowerLimit(NMatD)
       If(lInput.eq.1) then
         im=60
         il=0
@@ -40,7 +45,7 @@ C   and ThFUll = which is total available water
         im=im+1
         Do 11 M=1,NMat
           il=il+1
-          Read (40,*,ERR=10) (Par(i,M),i=1,NPar) !TODO have to add here for BD etc
+          Read (40,*,ERR=10) (Par(i,M),i=1,NPar) 
 11      Continue
         Close(40)
         hTab1=-amin1(abs(hTab1),abs(hTabN))
@@ -60,14 +65,20 @@ c
           thR(M)      =FQ(Hr ,Par(1,M))
           thSat(M)    =FQ(0.0,Par(1,M)) 
           
-          TUpperLimit(M)=FQ(-300.0,Par(1,M))
-          TLowerLimit(M)=FQ(-150000.0,Par(1,M))
-          ThFull(M)=TUpperLimit(M)-TLowerLimit(M)
+          
+         
           BlkDn(M)=  Par(10,M)
           FracOM(M)   =Par(11,M)
           FracSind(M) =Par(12,M)
           FracClay(M) =Par(13,M)
-         
+          TUpperLimit(M)=FQ(-100.0,Par(1,M))
+          TLowerLimit(M)=FQ(-150000.0,Par(1,M))
+          ThFull(M)=TUpperLimit(M)-TLowerLimit(M)
+          if (ThFull(M).lt.0) then
+             iii=0;
+            endif
+          
+          
           Do 13 i=1,NTabD
             ConTab(i,M)=FK(hTab(i),Par(1,M))
             CapTab(i,M)=FC(hTab(i),Par(1,M))
@@ -116,6 +127,7 @@ C calculate available water content
           else 
             ThAvail(i)=Amin1((theta(i)-TLowerLimit(M)),TUpperLimit(M))
      &                       -TLowerLimit(M)
+            ThAvail(i)=Amax1(ThAvail(i),0.0)
          End If          
 15    Continue
       Return
